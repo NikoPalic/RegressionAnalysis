@@ -106,14 +106,17 @@ glmdata$Region <- ifelse(glmdata$Travelling.Area %in% whole_world, "Worldwide",
                                 ifelse(glmdata$Travelling.Area %in% nordics, "Nordics", "Local")))
 glmdata$Region <- as.factor(glmdata$Region)
 
+glmdata$Financial.Rating[glmdata$Financial.Rating == "Missing"] <- "IR"
+glmdata$Financial.Rating[glmdata$Financial.Rating == ""] = "IR"
+glmdata$Financial.Rating <- factor(glmdata$Financial.Rating)
 
-myFun1("ActivityGroup","ClaimCost") 
+myFun1("Financial.Rating","ClaimCost") 
 myFun2("ActivityGroup","ClaimCost","Activity")
 par(mfrow=c(1,1))
-plot(glmdata$ClaimCost ~ glmdata$Activity)
-plot(glmdata$NumberOfClaims ~ glmdata$Activity)
-
 plot(glmdata$ClaimCost ~ glmdata$Financial.Rating)
+plot(glmdata$NumberOfClaims ~ glmdata$Financial.Rating)
+
+plot(glmdata$ActivityGroup ~ glmdata$Financial.Rating)
 
 # Secondly, we want to aggregate the data.
 # That is, instead of having one row per company&year, we want one row for each existing combination of variables
@@ -121,8 +124,8 @@ plot(glmdata$ClaimCost ~ glmdata$Financial.Rating)
 # Tha aggregated data is stored in a new table, glmdata2
 ##### You need to consider if there are any other variables you want to aggregate by, and modify the code accordingly
 
-glmdata2 <- aggregate(glmdata[c("Duration", "NumberOfClaims", "ClaimCost")],by=list(NoP_group = glmdata$NoPGroup,
-                                                                                    Duration_group = glmdata$DurationGroup
+glmdata2 <- aggregate(glmdata[c("Duration", "NumberOfClaims", "ClaimCost")],by=list(Duration_group = glmdata$DurationGroup,
+                                                                                    Financial_group = glmdata$Financial.Rating
 ), FUN=sum, na.rm=TRUE)
 
 # We then do some preparation for the output the GLM function will give.
@@ -131,15 +134,15 @@ glmdata2 <- aggregate(glmdata[c("Duration", "NumberOfClaims", "ClaimCost")],by=l
 
 glmdata3 <-
   data.frame(rating.factor =
-               c(rep("NoPGroup", nlevels(glmdata2$NoP_group)),
-                 rep("DurationGroup", nlevels(glmdata2$Duration_group))),
+               c(rep("DurationGroup", nlevels(glmdata2$Duration_group)),
+                 rep("Financial.Rating", nlevels(glmdata2$Financial_group))),
              class =
-               c(levels(glmdata2$NoP_group),
-                 levels(glmdata2$Duration_group)),
+               c(levels(glmdata2$Duration_group),
+                 levels(glmdata2$Financial_group)),
              stringsAsFactors = FALSE)
 
 new.cols <-
-  foreach (rating.factor = c("NoP_group", "Duration_group"),
+  foreach (rating.factor = c("Duration_group", "Financial_group"),
            .combine = rbind) %do%
   {
     nclaims <- tapply(glmdata2$NumberOfClaims, glmdata2[[rating.factor]], sum)
@@ -163,13 +166,11 @@ rm(new.cols)
 #data[data==""]<-NA #fill blanks with NA
 
 model.frequency <-
-  glm(NumberOfClaims ~ NoP_group + Duration_group,
+  glm(NumberOfClaims ~ Duration_group + Financial_group,
       data = glmdata2, family = poisson)
 
 plot(model.frequency)
-
-plot(glmdata2$NumberOfClaims)
-abline(model.frequency)
+plot(model.frequency$residuals)
 
 # Then we save the coefficients resulting from the GLM analysis in an array
 ##### You should not need to modify this part of the code
