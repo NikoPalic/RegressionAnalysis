@@ -30,19 +30,71 @@ glmdata <- read.table("Cancellation.csv", header=TRUE, sep=";", dec="," )
 ###### Remember to think about risk homogeneous and stable groups, for example having groups with zero # of claims or claims cost and almost no Duration makes it hard to determine its risk.
 ###### You might also want to group other variables from glmdata, in a similar manner
 
+#plot histogram Claimcost distribution (not 0) per some group
+myFun1 <- function(name1,name2)
+{
+  ll <- levels(glmdata[[name1]])
+  par(mfrow=c(2,3))
+  for (p in 1:length(ll)){
+    print(ll[p])
+    helper <- glmdata[(glmdata[[name1]] == ll[p]) & (glmdata[[name2]]!=0),]
+    hist(helper[[name2]], main=paste("Group: ",ll[p]))
+  }
+}
+#plot ClaimCost distribution over ages per groups
+myFun2 <- function(name1,name2,name3)
+{
+  ll <- levels(glmdata[[name1]])
+  par(mfrow=c(2,3))
+  for (p in 1:length(ll)){
+    print(ll[p])
+    helper <- glmdata[(glmdata[[name1]] == ll[p]) & (glmdata[[name2]]!=0),]
+    plot(helper[[name2]] ~ helper[[name3]], main=paste("Group: ",ll[p]))
+  }
+}
 
 glmdata$NoPGroup <- cut(glmdata$Number.of.Persons,
                        breaks = c(-Inf, 2, 5, 15, 50, 100, Inf),
                        labels = c("01_<2", "02_2_5", "03_5-15", "04_15-50", "05_50-100", "06_>=100"),
                        right = FALSE)
 
+glmdata$AgeGroup <- cut(glmdata$CompanyAge,
+                        breaks = c(-Inf,1,5,30,Inf),
+                        labels = c("01_<1","02<1-5","03_5-30","04_>=30"),
+                        right=FALSE)
 
+glmdata$EmployedGroup <- cut(glmdata$Num_of_ft_Employee,
+                             breaks = c(-Inf,1,3,25,40,8000,Inf),
+                             labels = c("01_<1","02<1-3","03_3-25","04_25-40","05_40-8000","06_>=8000"),
+                             right=FALSE)
 
-Industry <- c('B','D', 'E', 'U')
-Service <- c('G','I','S','T')
+myFun1("AgeGroup","ClaimCost")
+myFun2("AgeGroup","ClaimCost","CompanyAge")
+
+myFun1("EmployedGroup","ClaimCost")
+myFun2("EmployedGroup","ClaimCost","Num_of_ft_Employee") #found 2 outliers with >8000 employees
+
+#Split based on observed  spread
+Riskiest <- c('J','M') #consultants, lawyers
+SecondRiskiest <- c('B','K')
+ThirdRiskiest <- c('O','P','R')
+Industry <- c('D', 'E', 'U','F')
+Service <- c('I','S','T')
 glmdata$ActivityGroup <- ifelse(glmdata$Activity %in% Industry, "Industry",
                                 ifelse(glmdata$Activity %in% Service,"Service",
-                                       "Other" ))
+                                       ifelse(glmdata$Activity %in% Riskiest, "Risky",
+                                              ifelse(glmdata$Activity %in% SecondRiskiest, "SRisky",
+                                                     ifelse(glmdata$Activity %in% ThirdRiskiest, "TRisky",
+                                                            "Other" )))))
+
+glmdata$ActivityGroup <- factor(glmdata$ActivityGroup)
+myFun1("ActivityGroup","ClaimCost") 
+myFun2("ActivityGroup","ClaimCost","Activity")
+par(mfrow=c(1,1))
+plot(glmdata$ClaimCost ~ glmdata$Activity)
+plot(glmdata$NumberOfClaims ~ glmdata$Activity)
+
+plot(glmdata$ClaimCost ~ glmdata$Financial.Rating)
 
 # Secondly, we want to aggregate the data.
 # That is, instead of having one row per company&year, we want one row for each existing combination of variables
@@ -56,7 +108,7 @@ glmdata2 <- aggregate(glmdata[c("Duration", "NumberOfClaims", "ClaimCost")],by=l
 
 # We then do some preparation for the output the GLM function will give.
 # This piece of code creates a new table, glmdata3, with a row per variable and group, and with data on the total duration corresponding to this group.
-##### You need ot modify the code to take into account any changes in variables you're using
+##### You need to modify the code to take into account any changes in variables you're using
 
 glmdata3 <-
   data.frame(rating.factor =
@@ -88,6 +140,8 @@ rm(new.cols)
 # First, we model the claims frequency.
 # The first part of this performs a GLM analysis, with glmdata2 as the data source modelling NoOfClaims, by the Duration. It looks at three variables: weight_group, Climate, and ActivityCode.
 ##### This is where you can modify the model by adding or removing variables
+
+#data[data==""]<-NA #fill blanks with NA
 
 model.frequency <-
   glm(NumberOfClaims ~ NoP_group + Activity_group + offset(log(Duration)),
@@ -163,7 +217,7 @@ glmdata3$rels.risk <- with(glmdata3, rels.frequency*rels.severity)
 # First, long variable names need to be cut, to fit into the plots.
 # This row of code cuts away everything except for the first letter for variable names belonging to activity codes.
 ##### If you have long variable names, modify here to cut them.
-glmdata3[glmdata3$rating.factor == "Activity",2] <- substr(glmdata3$class,1,1)[7:29]
+glmdata3[glmdata3$rating.factor == "ActivityGroup",2] <- substr(glmdata3$class,1,1)[7:9]
 
 
 # Then the results are plotted. This code plots the GLM factors for frequency, severity, and total risk, for the three variables Weight, Climate, and Activity code.
@@ -194,7 +248,12 @@ p6 <- ggplot(subset(glmdata3, rating.factor=="ActivityGroup"), aes(x=class, y=re
   geom_point(colour="blue") + geom_line(aes(group=1), colour="blue") + ggtitle("Activity: risk factors") +
   geom_text(aes(label=paste(round(rels.risk,2))), nudge_y=0.1)
 
-
+plot(p1)
+plot(p2)
+plot(p3)
+plot(p4)
+plot(p5)
+plot(p6)
 
 multiplot(p1,p2,p3,p4,p5,p6, cols=2)
 
