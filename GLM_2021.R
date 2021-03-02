@@ -53,6 +53,9 @@ myFun2 <- function(name1,name2,name3)
   }
 }
 
+#glmdata <- glmdata[!(glmdata$Num_of_ft_Employee > 2000),]
+#glmdata <- glmdata[!(glmdata$NumberOfClaims > 7),]
+
 glmdata$NoPGroup <- cut(glmdata$Number.of.Persons,
                        breaks = c(-Inf, 2, 5, 15, 50, 100, Inf),
                        labels = c("01_<2", "02_2_5", "03_5-15", "04_15-50", "05_50-100", "06_>=100"),
@@ -68,11 +71,18 @@ glmdata$EmployedGroup <- cut(glmdata$Num_of_ft_Employee,
                              labels = c("01_<1","02<1-3","03_3-25","04_25-40","05_40-8000","06_>=8000"),
                              right=FALSE)
 
+glmdata$DurationGroup <- cut(glmdata$Duration,
+                             breaks = c(-Inf, 0.1, 0.2, 0.4, 0.6, 0.8, Inf),
+                             labels = c("01_<0.1", "02_0.1-0.2", "03_0.2-0.4", "04_0.4-0.6", "05_0.6-0.8", "06_>=0.8"),
+                             right = FALSE)
+
 myFun1("AgeGroup","ClaimCost")
 myFun2("AgeGroup","ClaimCost","CompanyAge")
 
 myFun1("EmployedGroup","ClaimCost")
 myFun2("EmployedGroup","ClaimCost","Num_of_ft_Employee") #found 2 outliers with >8000 employees
+
+myFun1("DurationGroup","ClaimCost")
 
 #Split based on observed  spread
 Riskiest <- c('J','M') #consultants, lawyers
@@ -86,8 +96,17 @@ glmdata$ActivityGroup <- ifelse(glmdata$Activity %in% Industry, "Industry",
                                               ifelse(glmdata$Activity %in% SecondRiskiest, "SRisky",
                                                      ifelse(glmdata$Activity %in% ThirdRiskiest, "TRisky",
                                                             "Other" )))))
-
 glmdata$ActivityGroup <- factor(glmdata$ActivityGroup)
+
+whole_world <- c("Abroad (whole world)")
+europe <- c("Abroad in Europe")
+nordics <- c("Abroad in Nordic Country")
+glmdata$Region <- ifelse(glmdata$Travelling.Area %in% whole_world, "Worldwide",
+                         ifelse(glmdata$Travelling.Area %in% europe, "Europe",
+                                ifelse(glmdata$Travelling.Area %in% nordics, "Nordics", "Local")))
+glmdata$Region <- as.factor(glmdata$Region)
+
+
 myFun1("ActivityGroup","ClaimCost") 
 myFun2("ActivityGroup","ClaimCost","Activity")
 par(mfrow=c(1,1))
@@ -103,7 +122,7 @@ plot(glmdata$ClaimCost ~ glmdata$Financial.Rating)
 ##### You need to consider if there are any other variables you want to aggregate by, and modify the code accordingly
 
 glmdata2 <- aggregate(glmdata[c("Duration", "NumberOfClaims", "ClaimCost")],by=list(NoP_group = glmdata$NoPGroup,
-                                                                                    Activity_group = as.factor(glmdata$ActivityGroup)
+                                                                                    Duration_group = glmdata$DurationGroup
 ), FUN=sum, na.rm=TRUE)
 
 # We then do some preparation for the output the GLM function will give.
@@ -113,14 +132,14 @@ glmdata2 <- aggregate(glmdata[c("Duration", "NumberOfClaims", "ClaimCost")],by=l
 glmdata3 <-
   data.frame(rating.factor =
                c(rep("NoPGroup", nlevels(glmdata2$NoP_group)),
-                 rep("ActivityGroup", nlevels(glmdata2$Activity_group))),
+                 rep("DurationGroup", nlevels(glmdata2$Duration_group))),
              class =
                c(levels(glmdata2$NoP_group),
-                 levels(glmdata2$Activity_group)),
+                 levels(glmdata2$Duration_group)),
              stringsAsFactors = FALSE)
 
 new.cols <-
-  foreach (rating.factor = c("NoP_group", "Activity_group"),
+  foreach (rating.factor = c("NoP_group", "Duration_group"),
            .combine = rbind) %do%
   {
     nclaims <- tapply(glmdata2$NumberOfClaims, glmdata2[[rating.factor]], sum)
@@ -144,8 +163,13 @@ rm(new.cols)
 #data[data==""]<-NA #fill blanks with NA
 
 model.frequency <-
-  glm(NumberOfClaims ~ NoP_group + Activity_group + offset(log(Duration)),
+  glm(NumberOfClaims ~ NoP_group + Duration_group,
       data = glmdata2, family = poisson)
+
+plot(model.frequency)
+
+plot(glmdata2$NumberOfClaims)
+abline(model.frequency)
 
 # Then we save the coefficients resulting from the GLM analysis in an array
 ##### You should not need to modify this part of the code
@@ -164,7 +188,7 @@ rels <- exp(rels[1] + rels[-1])/exp(rels[1])
 
 ##### You need to modify this code to fit your variables
 variableLevels <- c(nlevels(glmdata2[["NoP_group"]]),
-                    nlevels(glmdata2[["Activity_group"]]))
+                    nlevels(glmdata2[["Duration_group"]]))
 
 #You do not need to modify this part
 cs <- cumsum(variableLevels)
@@ -198,7 +222,7 @@ glmdata2$avgclaim=glmdata2$ClaimCost/glmdata2$NumberOfClaims
 ##### Remember that, according to the project instructions, you need to use the same variables for the severity as for the frequency.
 
 model.severity <-
-  glm(avgclaim ~ NoP_group + Activity_group ,
+  glm(avgclaim ~ NoP_group + Duration_group ,
       data = glmdata2[glmdata2$avgclaim>0,], family = Gamma("log"), weight=NumberOfClaims)
 
 # You do not need to change this part
@@ -236,16 +260,16 @@ p3 <- ggplot(subset(glmdata3, rating.factor=="NoPGroup"), aes(x=class, y=rels.ri
   geom_point(colour="blue") + geom_line(aes(group=1), colour="blue") + ggtitle("NoP: risk factors") +
   geom_text(aes(label=paste(round(rels.risk,2))), nudge_y=1.6)+theme(axis.text.x = element_text(angle = 30, hjust = 1))
 
-p4 <- ggplot(subset(glmdata3, rating.factor=="ActivityGroup"), aes(x=class, y=rels.frequency)) +
-  geom_point(colour="blue") + geom_line(aes(group=1), colour="blue") + ggtitle("Activity: frequency factors") +
+p4 <- ggplot(subset(glmdata3, rating.factor=="DurationGroup"), aes(x=class, y=rels.frequency)) +
+  geom_point(colour="blue") + geom_line(aes(group=1), colour="blue") + ggtitle("Duration: frequency factors") +
   geom_text(aes(label=paste(round(rels.frequency,2))), nudge_y=0.05)
 
-p5 <- ggplot(subset(glmdata3, rating.factor=="ActivityGroup"), aes(x=class, y=rels.severity)) +
-  geom_point(colour="blue") + geom_line(aes(group=1), colour="blue") + ggtitle("Activity: severity factors") +
+p5 <- ggplot(subset(glmdata3, rating.factor=="DurationGroup"), aes(x=class, y=rels.severity)) +
+  geom_point(colour="blue") + geom_line(aes(group=1), colour="blue") + ggtitle("Duration: severity factors") +
   geom_text(aes(label=paste(round(rels.severity,2))), nudge_y=0.1)
 
-p6 <- ggplot(subset(glmdata3, rating.factor=="ActivityGroup"), aes(x=class, y=rels.risk)) +
-  geom_point(colour="blue") + geom_line(aes(group=1), colour="blue") + ggtitle("Activity: risk factors") +
+p6 <- ggplot(subset(glmdata3, rating.factor=="DurationGroup"), aes(x=class, y=rels.risk)) +
+  geom_point(colour="blue") + geom_line(aes(group=1), colour="blue") + ggtitle("Duration: risk factors") +
   geom_text(aes(label=paste(round(rels.risk,2))), nudge_y=0.1)
 
 plot(p1)
@@ -273,7 +297,7 @@ multiplot(p1,p2,p3,p4,p5,p6, cols=2)
 ###Estimate Claim cost next year
 
 
-agg_vars = c('ClaimCost','Duration','NumberOfClaims')
+agg_vars = c('ClaimCost','NumberOfClaims')
 Claims_Per_Year = aggregate(glmdata[agg_vars], by=list(Category=glmdata$RiskYear), FUN=sum)
 plot(Claims_Per_Year$Category,Claims_Per_Year$ClaimCost)
 
