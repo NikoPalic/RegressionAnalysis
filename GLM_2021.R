@@ -188,8 +188,8 @@ rels <- exp(rels[1] + rels[-1])/exp(rels[1])
 ##### You need to modify this code to suit your set of variables and groups, to make sure each GLM coefficient is saved in the correct place.
 
 ##### You need to modify this code to fit your variables
-variableLevels <- c(nlevels(glmdata2[["NoP_group"]]),
-                    nlevels(glmdata2[["Duration_group"]]))
+variableLevels <- c(nlevels(glmdata2[["Duration_group"]]),
+                    nlevels(glmdata2[["Financial_group"]]))
 
 #You do not need to modify this part
 cs <- cumsum(variableLevels)
@@ -223,7 +223,7 @@ glmdata2$avgclaim=glmdata2$ClaimCost/glmdata2$NumberOfClaims
 ##### Remember that, according to the project instructions, you need to use the same variables for the severity as for the frequency.
 
 model.severity <-
-  glm(avgclaim ~ NoP_group + Duration_group ,
+  glm(avgclaim ~ Duration_group + Financial_group ,
       data = glmdata2[glmdata2$avgclaim>0,], family = Gamma("log"), weight=NumberOfClaims)
 
 # You do not need to change this part
@@ -249,27 +249,27 @@ glmdata3[glmdata3$rating.factor == "ActivityGroup",2] <- substr(glmdata3$class,1
 ##### If you have changed what variables are included in your model, add, remove, or modify sections of this code to plot them.
 ##### This is also where you can make changes to change the look of your plots, if you would like to.
 
-p1 <- ggplot(subset(glmdata3, rating.factor=="NoPGroup"), aes(x=class, y=rels.frequency)) +
+p1 <- ggplot(subset(glmdata3, rating.factor=="DurationGroup"), aes(x=class, y=rels.frequency)) +
   geom_point(colour="blue") + geom_line(aes(group=1), colour="blue") + ggtitle("NoP: frequency factors") +
   geom_text(aes(label=paste(round(rels.frequency,2))), nudge_y=1) +theme(axis.text.x = element_text(angle = 30, hjust = 1))
 
-p2 <- ggplot(subset(glmdata3, rating.factor=="NoPGroup"), aes(x=class, y=rels.severity)) +
+p2 <- ggplot(subset(glmdata3, rating.factor=="DurationGroup"), aes(x=class, y=rels.severity)) +
   geom_point(colour="blue") + geom_line(aes(group=1), colour="blue") + ggtitle("NoP: severity factors") +
   geom_text(aes(label=paste(round(rels.severity,2))), nudge_y=0.5)+theme(axis.text.x = element_text(angle = 30, hjust = 1))
 
-p3 <- ggplot(subset(glmdata3, rating.factor=="NoPGroup"), aes(x=class, y=rels.risk)) +
+p3 <- ggplot(subset(glmdata3, rating.factor=="DurationGroup"), aes(x=class, y=rels.risk)) +
   geom_point(colour="blue") + geom_line(aes(group=1), colour="blue") + ggtitle("NoP: risk factors") +
   geom_text(aes(label=paste(round(rels.risk,2))), nudge_y=1.6)+theme(axis.text.x = element_text(angle = 30, hjust = 1))
 
-p4 <- ggplot(subset(glmdata3, rating.factor=="DurationGroup"), aes(x=class, y=rels.frequency)) +
+p4 <- ggplot(subset(glmdata3, rating.factor=="Financial.Rating"), aes(x=class, y=rels.frequency)) +
   geom_point(colour="blue") + geom_line(aes(group=1), colour="blue") + ggtitle("Duration: frequency factors") +
   geom_text(aes(label=paste(round(rels.frequency,2))), nudge_y=0.05)
 
-p5 <- ggplot(subset(glmdata3, rating.factor=="DurationGroup"), aes(x=class, y=rels.severity)) +
+p5 <- ggplot(subset(glmdata3, rating.factor=="Financial.Rating"), aes(x=class, y=rels.severity)) +
   geom_point(colour="blue") + geom_line(aes(group=1), colour="blue") + ggtitle("Duration: severity factors") +
   geom_text(aes(label=paste(round(rels.severity,2))), nudge_y=0.1)
 
-p6 <- ggplot(subset(glmdata3, rating.factor=="DurationGroup"), aes(x=class, y=rels.risk)) +
+p6 <- ggplot(subset(glmdata3, rating.factor=="Financial.Rating"), aes(x=class, y=rels.risk)) +
   geom_point(colour="blue") + geom_line(aes(group=1), colour="blue") + ggtitle("Duration: risk factors") +
   geom_text(aes(label=paste(round(rels.risk,2))), nudge_y=0.1)
 
