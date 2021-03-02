@@ -94,6 +94,10 @@ par(mfrow=c(1,1))
 plot(glmdata$ClaimCost ~ glmdata$Activity)
 plot(glmdata$NumberOfClaims ~ glmdata$Activity)
 
+#There's one entry with blank Financial.Rating
+index <- glmdata$Financial.Rating==""
+glmdata$Financial.Rating[index]<-"Missing"
+glmdata$Financial.Rating <- droplevels(glmdata$Financial.Rating)
 plot(glmdata$ClaimCost ~ glmdata$Financial.Rating)
 
 # Secondly, we want to aggregate the data.
@@ -103,7 +107,10 @@ plot(glmdata$ClaimCost ~ glmdata$Financial.Rating)
 ##### You need to consider if there are any other variables you want to aggregate by, and modify the code accordingly
 
 glmdata2 <- aggregate(glmdata[c("Duration", "NumberOfClaims", "ClaimCost")],by=list(NoP_group = glmdata$NoPGroup,
-                                                                                    Activity_group = as.factor(glmdata$ActivityGroup)
+                                                                                    Activity_group = as.factor(glmdata$ActivityGroup),
+                                                                                    Age_group = glmdata$AgeGroup,
+                                                                                    Employed_group = glmdata$EmployedGroup,
+                                                                                    Financial_group = glmdata$Financial.Rating
 ), FUN=sum, na.rm=TRUE)
 
 # We then do some preparation for the output the GLM function will give.
@@ -113,14 +120,22 @@ glmdata2 <- aggregate(glmdata[c("Duration", "NumberOfClaims", "ClaimCost")],by=l
 glmdata3 <-
   data.frame(rating.factor =
                c(rep("NoPGroup", nlevels(glmdata2$NoP_group)),
-                 rep("ActivityGroup", nlevels(glmdata2$Activity_group))),
+                 rep("ActivityGroup", nlevels(glmdata2$Activity_group)),
+                 rep("AgeGroup", nlevels(glmdata2$Age_group)),
+                 rep("EmployedGroup", nlevels(glmdata2$Employed_group)),
+                 rep("FinancialGroup", nlevels(glmdata2$Financial_group))
+                 ),
              class =
                c(levels(glmdata2$NoP_group),
-                 levels(glmdata2$Activity_group)),
+                 levels(glmdata2$Activity_group),
+                 levels(glmdata2$Age_group),
+                 levels(glmdata2$Employed_group),
+                 levels(glmdata2$Financial_group)
+                 ),
              stringsAsFactors = FALSE)
 
 new.cols <-
-  foreach (rating.factor = c("NoP_group", "Activity_group"),
+  foreach (rating.factor = c("NoP_group", "Activity_group","Age_Group", "Employed_Group", "Financial_group"),
            .combine = rbind) %do%
   {
     nclaims <- tapply(glmdata2$NumberOfClaims, glmdata2[[rating.factor]], sum)
