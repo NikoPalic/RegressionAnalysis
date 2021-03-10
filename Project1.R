@@ -1,8 +1,9 @@
+install.packages("TH.data")
+library("TH.data")
+data("bodyfat")
+df = bodyfat
 
-#install.packages("car") #needs libcurl installed
-library(car)
-
-df <- read.csv("bodyfatwomen.csv", header = TRUE)
+# df <- read.csv("bodyfatwomen.csv", header = TRUE)
 
 model <- lm(DEXfat ~ ., data=df)
 summary(model)
@@ -106,4 +107,80 @@ plot(modelt, which=2)
 #The model behaves well without any transformations
 ###############################################################################
 
+# Multicolinearity ############################################################
+# Full code in a separate file, the conclusion was that there is severe multi-
+# colinearity and there's nothing we can do about it - apart from using ridge
+# regression.
+
+# Variable selection ##########################################################
+# Stepwise regression
+m <- step(
+        lm(DEXfat ~ ., data=dfr),
+        direction="both"
+)
+# This chooses the model: DEXfat ~ waistcirc + hipcirc + kneebreadth + anthro3b + anthro4
+# Statistics: AIC 120.25; Adjusted R-squared:  0.9444064
+
+# Backward selection
+m <- step(
+        lm(DEXfat ~ ., data=dfr),
+        direction="backward"
+)
+# This produces the same result
+
+# For evaluating whether using a subset of variables is valuable, use ridge
+# regression - thank you https://www.pluralsight.com/guides/linear-lasso-and-ridge-regression-with-r
+library(glmnet)
+
+eval_results <- function(true, predicted, df) {
+        SSE <- sum((predicted - true)^2)
+        SST <- sum((true - mean(true))^2)
+        R_square <- 1 - SSE / SST
+        MSE = SSE/nrow(df)
+        
+        # Model performance metrics
+        data.frame(
+                MSE = MSE,
+                Rsquare = R_square
+        )
+}
+
+ridge_result <- function(train, test) {
+        x = as.matrix(train[, !(names(train) %in% c("DEXfat"))])
+        y_train = train$DEXfat
+        
+        x_test = as.matrix(test[, !(names(test) %in% c("DEXfat"))])
+        y_test = test$DEXfat
+        
+        lambdas <- seq(0, 1, 0.001)
+        ridge_reg = glmnet(x, y_train, nlambda = 25, alpha = 0, family = 'gaussian', lambda = lambdas)
+        
+        cv_ridge <- cv.glmnet(x, y_train, alpha = 0, lambda = lambdas, nfolds = 5)
+        optimal_lambda <- cv_ridge$lambda.min
+        print(optimal_lambda)
+        
+        # Prediction and evaluation on train data
+        predictions_train <- predict(ridge_reg, s = optimal_lambda, newx = x)
+        print(eval_results(y_train, predictions_train, train))
+        
+        # Prediction and evaluation on test data
+        predictions_test <- predict(ridge_reg, s = optimal_lambda, newx = x_test)
+        eval_results(y_test, predictions_test, test)
+}
+
+# Get a collection of row ids that we will use for testing
+test_idxs = sample(nrow(dfr), 20)
+
+# Then perform the regression. First do it on the complete model
+test = dfr[test_idxs, ]
+train = dfr[-test_idxs, ]
+ridge_result(train, test)
+
+# Then do it on variables that were chosen by variable selection
+test = dfr[test_idxs, (names(dfr) %in% c("DEXfat", "waistcirc", "hipcirc", "kneebreadth", "anthro3b", "anthro4"))]
+train = dfr[-test_idxs, (names(dfr) %in% c("DEXfat", "waistcirc", "hipcirc", "kneebreadth", "anthro3b", "anthro4"))]
+ridge_result(train, test)
+
+# Bootstrapping ###############################################################
+# TODO
 
