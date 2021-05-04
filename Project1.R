@@ -181,6 +181,4 @@ test = dfr[test_idxs, (names(dfr) %in% c("DEXfat", "waistcirc", "hipcirc", "knee
 train = dfr[-test_idxs, (names(dfr) %in% c("DEXfat", "waistcirc", "hipcirc", "kneebreadth", "anthro3b", "anthro4"))]
 ridge_result(train, test)
 
-# Bootstrapping ###############################################################
-# TODO
 
